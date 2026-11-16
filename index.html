@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mentor IA - Teste de Consumo de Tokens</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            max-width: 850px;
+            margin: 30px auto;
+            padding: 20px;
+        }
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        h1 { color: #1a73e8; margin-top: 0; }
+        input[type="text"] {
+            width: 70%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 15px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { background-color: #1557b0; }
+        button:disabled { background-color: #999; cursor: not-allowed; }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .badge {
+            display: inline-block;
+            background: #e8f0fe;
+            color: #1a73e8;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            margin: 3px 0;
+            font-size: 14px;
+        }
+        .resposta-ia {
+            background: #f9f9f9;
+            padding: 12px;
+            border-left: 4px solid #1a73e8;
+            font-size: 13px;
+            margin-top: 10px;
+            max-height: 150px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .conclusao {
+            background-color: #e6f4ea;
+            border-left: 5px solid #1e8e3e;
+            padding: 15px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>🤖 Mentor IA: Comparador de Tokens</h1>
+        <p>Cole sua chave da API do Google Gemini abaixo para executar automaticamente os dois testes pedidos no exercício:</p>
+        <input type="text" id="apiKey" placeholder="Cole sua API Key aqui (ex: AIzaSy...)">
+        <button id="btnExecutar" onclick="rodarTestes()">Executar Testes</button>
+    </div>
+
+    <div class="grid" id="areaResultados" style="display: none;">
+        <!-- Card Teste 1 -->
+        <div class="card">
+            <h3>1️⃣ Teste 1: Prompt Curto</h3>
+            <p><strong>Prompt:</strong> <span id="p1"></span></p>
+            <div>
+                <div class="badge">Entrada: <span id="in1">0</span> tokens</div><br>
+                <div class="badge">Saída: <span id="out1">0</span> tokens</div><br>
+                <div class="badge" style="background:#d2e3fc;">TOTAL: <span id="tot1">0</span> tokens</div>
+            </div>
+            <div class="resposta-ia" id="resp1"></div>
+        </div>
+
+        <!-- Card Teste 2 -->
+        <div class="card">
+            <h3>2️⃣ Teste 2: Prompt Detalhado</h3>
+            <p><strong>Prompt:</strong> <span id="p2"></span></p>
+            <div>
+                <div class="badge">Entrada: <span id="in2">0</span> tokens</div><br>
+                <div class="badge">Saída: <span id="out2">0</span> tokens</div><br>
+                <div class="badge" style="background:#d2e3fc;">TOTAL: <span id="tot2">0</span> tokens</div>
+            </div>
+            <div class="resposta-ia" id="resp2"></div>
+        </div>
+    </div>
+
+    <!-- Card Comparação -->
+    <div class="card conclusao" id="areaComparacao" style="display: none;">
+        <h3>📊 Comparação e Conclusão</h3>
+        <p id="textoComparacao"></p>
+    </div>
+
+    <script>
+        // Função que chama a API do Gemini atuando como "Mentor"
+        async function consultarMentor(apiKey, promptUsuario) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+            
+            const corpoRequisicao = {
+                // Configuração do Mentor (System Instruction)
+                system_instruction: {
+                    parts: [{ text: "Você é um mentor de programação paciente e didático." }]
+                },
+                contents: [{
+                    parts: [{ text: promptUsuario }]
+                }]
+            };
+
+            const resposta = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(corpoRequisicao)
+            });
+
+            if (!resposta.ok) {
+                throw new Error("Erro na API. Verifique se a sua chave está correta.");
+            }
+
+            const dados = await resposta.json();
+            
+            return {
+                texto: dados.candidates[0].content.parts[0].text,
+                tokensEntrada: dados.usageMetadata.promptTokenCount,
+                tokensSaida: dados.usageMetadata.candidatesTokenCount,
+                tokensTotal: dados.usageMetadata.totalTokenCount
+            };
+        }
+
+        async function rodarTestes() {
+            const apiKey = document.getElementById("apiKey").value.trim();
+            if (!apiKey) {
+                alert("Por favor, cole sua chave de API antes de executar!");
+                return;
+            }
+
+            const btn = document.getElementById("btnExecutar");
+            btn.disabled = true;
+            btn.innerText = "Consultando o Mentor... Aguarde";
+
+            // Definição dos dois prompts
+            const promptCurto = "O que é uma tag HTML?";
+            const promptDetalhado = "Explique o que é uma tag HTML para um iniciante absoluto. Use uma analogia do dia a dia, dê 3 exemplos de tags básicas e mostre o que acontece se esquecermos de fechar uma tag.";
+
+            try {
+                // Executa Teste 1
+                const res1 = await consultarMentor(apiKey, promptCurto);
+                document.getElementById("p1").innerText = promptCurto;
+                document.getElementById("in1").innerText = res1.tokensEntrada;
+                document.getElementById("out1").innerText = res1.tokensSaida;
+                document.getElementById("tot1").innerText = res1.tokensTotal;
+                document.getElementById("resp1").innerText = res1.texto;
+
+                // Executa Teste 2
+                const res2 = await consultarMentor(apiKey, promptDetalhado);
+                document.getElementById("p2").innerText = promptDetalhado;
+                document.getElementById("in2").innerText = res2.tokensEntrada;
+                document.getElementById("out2").innerText = res2.tokensSaida;
+                document.getElementById("tot2").innerText = res2.tokensTotal;
+                document.getElementById("resp2").innerText = res2.texto;
+
+                // Mostra os cards na tela
+                document.getElementById("areaResultados").style.display = "grid";
+                document.getElementById("areaComparacao").style.display = "block";
+
+                // Faz a comparação
+                const diferenca = res2.tokensTotal - res1.tokensTotal;
+                document.getElementById("textoComparacao").innerHTML = `
+                    O <strong>Teste 2 (Prompt Detalhado)</strong> consumiu mais tokens, totalizando <strong>${res2.tokensTotal} tokens</strong> contra <strong>${res1.tokensTotal} tokens</strong> do Teste 1 (uma diferença de <strong>${diferenca} tokens a mais</strong>).<br><br>
+                    <strong>Motivo:</strong> O prompt detalhado exige mais processamento tanto na <em>entrada</em> (mais palavras enviadas) quanto na <em>saída</em> (a IA precisa gerar uma explicação muito maior para responder a tudo o que foi pedido).
+                `;
+
+            } catch (erro) {
+                alert(erro.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Executar Testes";
+            }
+        }
+    </script>
+
+</body>
+</html>
